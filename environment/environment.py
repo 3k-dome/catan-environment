@@ -19,10 +19,6 @@ OBSERVATION_SPEC = 788
 T = TypeVar("T")
 
 
-def catan_splitter_function(state: dict[str, T]) -> tuple[T, T]:
-    return state["observation"], state["mask"]
-
-
 class CatanEnvironment(PyEnvironment):
     def __init__(self, port: int, host: str = ""):
         super().__init__(False)
@@ -59,9 +55,13 @@ class CatanEnvironment(PyEnvironment):
             ),
         }
 
+    @staticmethod
+    def constraint_splitter(state: dict[str, T]) -> tuple[T, T]:
+        return state["observation"], state["mask"]
+
     def close(self) -> None:
         """Closes the environment by stopping the underlying http server."""
-        self.start_callback()
+        self.stop_callback()
         return super().close()
 
     def _reset(self) -> TimeStep:
@@ -101,6 +101,21 @@ class CatanEnvironment(PyEnvironment):
         state_model = ENVIRONMENT_STATE.get()
         return state_model.to_observation(), state_model.type
 
+    def _perform_dummy_action(self) -> None:
+        """Send a dummy action back the environment.
+
+        The current environment is setup using a simple HTTP server and therefore
+        uses POST requests to communicate states.
+
+        A state is send from the environment to the agent and the agent answers
+        the request with ist chosen action.
+
+        If the episode ends with the current state the agent is no longer required
+        to select and send an action, therefore a dummy action is send.
+        """
+        action_model = SubmittedActionModel(self.player_number, -1)
+        ENVIRONMENT_ACTION.put(action_model)
+
     def _calculate_rewards(self, old_observation: NDArray[np.float32], new_observation: NDArray[np.float32]) -> float:
         """Calculate rewards based on the old and new state after any taken action.
 
@@ -123,8 +138,8 @@ class CatanEnvironment(PyEnvironment):
 
         observation, message_type = self._perform_action(action)
         reward = self._calculate_rewards(
-            cast(NDArray[np.float32], catan_splitter_function(self._state)[0]),
-            cast(NDArray[np.float32], catan_splitter_function(observation)[0]),
+            cast(NDArray[np.float32], CatanEnvironment.constraint_splitter(self._state)[0]),
+            cast(NDArray[np.float32], CatanEnvironment.constraint_splitter(observation)[0]),
         )
 
         self._state = observation
@@ -132,9 +147,12 @@ class CatanEnvironment(PyEnvironment):
         match message_type:
             case MessageType.EPISODE_CONTINUES:
                 return trajectories.transition(self._state, reward)  # type: ignore
+
             case MessageType.EPISODE_ENDS:
                 self._episode_ended = True
+                self._perform_dummy_action()
                 return trajectories.termination(self._state, reward)  # type: ignore
+
             case _:
                 raise Exception("This episode has not yet ended, something must have gone wrong!")
 
