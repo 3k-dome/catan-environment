@@ -13,8 +13,8 @@ from environment.models import SubmittedActionModel
 from environment.queues import ENVIRONMENT_ACTION, ENVIRONMENT_STATE
 from environment.server import server_factory
 
-ACTION_SPEC = 180
-OBSERVATION_SPEC = 788
+ACTION_SPEC = 218
+OBSERVATION_SPEC = 842
 
 T = TypeVar("T")
 
@@ -96,7 +96,7 @@ class CatanEnvironment(PyEnvironment):
         :param action: The chosen action passed to the `_step` method.
         :return: The new observation of the environment.
         """
-        action_model = SubmittedActionModel(self.player_number, action[0])
+        action_model = SubmittedActionModel(self.player_number, int(action))
         ENVIRONMENT_ACTION.put(action_model)
         state_model = ENVIRONMENT_STATE.get()
         return state_model.to_observation(), state_model.type

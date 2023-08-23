@@ -1,9 +1,8 @@
-from enum import Enum, auto
+from enum import IntEnum, auto
 
 
-class PlayerNumber(Enum):
+class PlayerNumber(IntEnum):
     ONE = 0
     TWO = auto()
     THREE = auto()
     FOUR = auto()
-

@@ -1,7 +1,7 @@
-from enum import Enum, auto
+from enum import IntEnum, auto
 
 
-class MessageType(Enum):
+class MessageType(IntEnum):
     EPISODE_STARTS = 0
     EPISODE_CONTINUES = auto()
     EPISODE_ENDS = auto()
