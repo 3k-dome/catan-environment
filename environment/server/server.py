@@ -1,9 +1,13 @@
+import logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Callable
 
 from environment.models import ReceivedStateModel
 from environment.queues import ENVIRONMENT_ACTION, ENVIRONMENT_STATE
-from typing import Callable
+
 from . import reader
+
+LOGGER = logging.getLogger("catan-environment")
 
 
 class EnvironmentRequestHandler(BaseHTTPRequestHandler):
@@ -24,6 +28,8 @@ class EnvironmentRequestHandler(BaseHTTPRequestHandler):
         data = reader.read_stream_as_json(self.rfile)
         state_model = ReceivedStateModel(**data)
         ENVIRONMENT_STATE.put(state_model)
+        
+        LOGGER.info(f"Received and decoded 'StateModel' with message type '{state_model.type}'.")
 
         # wait until the state is processed and respond
         action_model = ENVIRONMENT_ACTION.get()
@@ -33,6 +39,9 @@ class EnvironmentRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-type", "application/json")
         self.end_headers()
         self.wfile.write(action_model_encoded)
+
+        LOGGER.info(f"Encoded and set 'ActionModel', selected action index was '{action_model.index}'.")
+
 
 
 def server_factory(host: str, port: int) -> tuple[HTTPServer, Callable[[], None], Callable[[], None]]:
@@ -46,9 +55,11 @@ def server_factory(host: str, port: int) -> tuple[HTTPServer, Callable[[], None]
     server = HTTPServer(server_address, EnvironmentRequestHandler)
 
     def start_server():
+        LOGGER.info(f"Environment listening on {host or '127.0.0.1'}:{port}.")
         server.serve_forever()
 
     def stop_server():
+        LOGGER.info(f"Environment stopped listening.")
         server.shutdown()
         server.server_close()
 
