@@ -1,16 +1,15 @@
 import logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Callable
+from typing import Any, Callable
 
 from environment.models import ReceivedStateModel
 from environment.queues import ENVIRONMENT_ACTION, ENVIRONMENT_STATE
-
-from . import reader
+from environment.server import reader
 
 LOGGER = logging.getLogger("catan-environment")
 
 
-class EnvironmentRequestHandler(BaseHTTPRequestHandler):
+class EnvironmentHttpServer(BaseHTTPRequestHandler):
     def do_POST(self):
         """POST-Request handler for the environment server.
 
@@ -28,8 +27,8 @@ class EnvironmentRequestHandler(BaseHTTPRequestHandler):
         data = reader.read_stream_as_json(self.rfile)
         state_model = ReceivedStateModel(**data)
         ENVIRONMENT_STATE.put(state_model)
-        
-        LOGGER.info(f"Received and decoded 'StateModel' with message type '{state_model.type}'.")
+
+        LOGGER.debug(f"Received and decoded 'StateModel' with message type '{state_model.type}'.")
 
         # wait until the state is processed and respond
         action_model = ENVIRONMENT_ACTION.get()
@@ -40,27 +39,29 @@ class EnvironmentRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(action_model_encoded)
 
-        LOGGER.info(f"Encoded and set 'ActionModel', selected action index was '{action_model.index}'.")
+        LOGGER.debug(f"Encoded and set 'ActionModel', selected action index was '{action_model.index}'.")
 
+    def log_message(self, format: str, *args: Any) -> None:
+        return
 
+    @staticmethod
+    def server_factory(host: str, port: int) -> tuple[HTTPServer, Callable[[], None], Callable[[], None]]:
+        """Creates a new `HTTPServer` running on the given ip and port.
 
-def server_factory(host: str, port: int) -> tuple[HTTPServer, Callable[[], None], Callable[[], None]]:
-    """Creates a new `HTTPServer` running on the given ip and port.
+        :param host: Host address of the `HTTPServer`.
+        :param port: Port of the `HTTPServer`.
+        :return: The `HTTPServer` itself as well as a callback to start and terminate the server.
+        """
+        server_address = (host, port)
+        server = HTTPServer(server_address, EnvironmentHttpServer)
 
-    :param host: Host address of the `HTTPServer`.
-    :param port: Port of the `HTTPServer`.
-    :return: The `HTTPServer` itself as well as a callback to start and terminate the server.
-    """
-    server_address = (host, port)
-    server = HTTPServer(server_address, EnvironmentRequestHandler)
+        def start_server():
+            LOGGER.debug(f"Environment listening on {host or '127.0.0.1'}:{port}.")
+            server.serve_forever()
 
-    def start_server():
-        LOGGER.info(f"Environment listening on {host or '127.0.0.1'}:{port}.")
-        server.serve_forever()
+        def stop_server():
+            LOGGER.debug(f"Environment stopped listening.")
+            server.shutdown()
+            server.server_close()
 
-    def stop_server():
-        LOGGER.info(f"Environment stopped listening.")
-        server.shutdown()
-        server.server_close()
-
-    return server, start_server, stop_server
+        return server, start_server, stop_server
