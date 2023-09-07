@@ -1,5 +1,6 @@
+import logging
 from threading import Thread
-from typing import TypeVar, cast
+from typing import Literal, TypeVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -10,25 +11,27 @@ from tf_agents.trajectories.time_step import TimeStep  # type: ignore
 
 from environment.enums import MessageType, PlayerNumber
 from environment.models import SubmittedActionModel
+from environment.parameters import EnvironmentParameters
 from environment.queues import ENVIRONMENT_ACTION, ENVIRONMENT_STATE
-from environment.server import server_factory
+from environment import server
+
+LOGGER = logging.getLogger("catan-environment")
 
 ACTION_SPEC = 218
-OBSERVATION_SPEC = 842
+OBSERVATION_SPEC = 840
+
 
 T = TypeVar("T")
 
 
-class CatanEnvironment(PyEnvironment):
-    def __init__(self, port: int, host: str = ""):
+class CatanRemoteEnvironment(PyEnvironment):
+    def __init__(self, parameters: EnvironmentParameters):
         super().__init__(False)
 
-        self.player_number = PlayerNumber.ONE
+        self.reward_mode: float | Literal["naive"] = parameters.reward_mode
+        self.use_episode_end_signal = parameters.episode_end_signal
 
-        self.server, self.start_callback, self.stop_callback = server_factory(host, port)
-        self.server_thread = Thread(target=self.start_callback)
-        self.server_thread.daemon = True
-        self.server_thread.start()
+        self.player_number = PlayerNumber.ONE
 
         self._action_spec = BoundedArraySpec(
             shape=(),
@@ -58,11 +61,6 @@ class CatanEnvironment(PyEnvironment):
     @staticmethod
     def constraint_splitter(state: dict[str, T]) -> tuple[T, T]:
         return state["observation"], state["mask"]
-
-    def close(self) -> None:
-        """Closes the environment by stopping the underlying http server."""
-        self.stop_callback()
-        return super().close()
 
     def _reset(self) -> TimeStep:
         """Resets the current environment and starts a new episode.
@@ -99,6 +97,7 @@ class CatanEnvironment(PyEnvironment):
         action_model = SubmittedActionModel(self.player_number, int(action))
         ENVIRONMENT_ACTION.put(action_model)
         state_model = ENVIRONMENT_STATE.get()
+
         return state_model.to_observation(), state_model.type
 
     def _perform_dummy_action(self) -> None:
@@ -116,16 +115,48 @@ class CatanEnvironment(PyEnvironment):
         action_model = SubmittedActionModel(self.player_number, -1)
         ENVIRONMENT_ACTION.put(action_model)
 
-    def _calculate_rewards(self, old_observation: NDArray[np.float32], new_observation: NDArray[np.float32]) -> float:
-        """Calculate rewards based on the old and new state after any taken action.
+    @staticmethod
+    def episode_end_signal(current_observation: NDArray[np.float32]) -> float:
+        if current_observation[0] >= 1:
+            reward = 1.0
+            LOGGER.info(f"Reward := {reward}, Episode won!")
+            return reward
 
-        For now we only look at the difference in victory points.
+        reward = -1.0
+        LOGGER.info(f"Reward := {reward}, Episode lost!")
+        return reward
+
+    @staticmethod
+    def naive_additive_reward(old_observation: NDArray[np.float32], new_observation: NDArray[np.float32]) -> float:
+        """Naive reward function that simply assigns rewards based on the victory points gained."""
+        delta_vp = new_observation[0] - old_observation[0]
+        LOGGER.info(f"Reward := {delta_vp}")
+        return delta_vp
+
+    @staticmethod
+    def polynomial_distance_reward(current_observation: NDArray[np.float32], degree: float) -> float:
+        """Reward function based on a negative target distance with polynomial weighting."""
+        corrected_target_offset = min(current_observation[0], 1)
+        reward = (corrected_target_offset**degree) - 1
+        LOGGER.info(f"Reward := {reward}")
+        return reward
+
+    def _calculate_rewards(self, message_type: MessageType, old_observation: NDArray[np.float32], new_observation: NDArray[np.float32]) -> float:
+        """Calculate rewards based on the old and new state after any taken action.
 
         :param old_observation: The old observation before the latest action was taken.
         :param new_observation: The new observation after the latest action was taken.
         :return: A value representing the reward for this action.
         """
-        return new_observation[0] - old_observation[0]
+
+        if message_type == MessageType.EPISODE_ENDS and self.use_episode_end_signal:
+            return self.episode_end_signal(new_observation)
+
+        return (
+            CatanRemoteEnvironment.naive_additive_reward(old_observation, new_observation)
+            if self.reward_mode == "naive"
+            else CatanRemoteEnvironment.polynomial_distance_reward(new_observation, self.reward_mode)
+        )
 
     def _step(self, action: NDArray[np.int32]) -> TimeStep:  # type: ignore
         """Updates the environment and returns the next transition.
@@ -138,8 +169,9 @@ class CatanEnvironment(PyEnvironment):
 
         observation, message_type = self._perform_action(action)
         reward = self._calculate_rewards(
-            cast(NDArray[np.float32], CatanEnvironment.constraint_splitter(self._state)[0]),
-            cast(NDArray[np.float32], CatanEnvironment.constraint_splitter(observation)[0]),
+            message_type,
+            cast(NDArray[np.float32], CatanRemoteEnvironment.constraint_splitter(self._state)[0]),
+            cast(NDArray[np.float32], CatanRemoteEnvironment.constraint_splitter(observation)[0]),
         )
 
         self._state = observation
@@ -161,3 +193,34 @@ class CatanEnvironment(PyEnvironment):
 
     def observation_spec(self) -> dict[str, BoundedArraySpec]:
         return self._observation_spec
+
+
+# this could be moved into the base class using generics but for now this is much simpler
+
+
+class CatanHttpEnvironment(CatanRemoteEnvironment):
+    def __init__(self, parameters: EnvironmentParameters):
+        super().__init__(parameters)
+        self.server, self.start_callback, self.stop_callback = server.EnvironmentHttpServer.server_factory(parameters.host, parameters.port)
+        self.server_thread = Thread(target=self.start_callback)
+        self.server_thread.daemon = True
+        self.server_thread.start()
+
+    def close(self) -> None:
+        """Closes the environment by stopping the underlying http server."""
+        self.stop_callback()
+        return super().close()
+
+
+class CatanSocketEnvironment(CatanRemoteEnvironment):
+    def __init__(self, parameters: EnvironmentParameters):
+        super().__init__(parameters)
+        self.server, self.start_callback, self.stop_callback = server.EnvironmentSocketServer.server_factory(parameters.host, parameters.port)
+        self.server_thread = Thread(target=self.start_callback)
+        self.server_thread.daemon = True
+        self.server_thread.start()
+
+    def close(self) -> None:
+        """Closes the environment by stopping the underlying socket server."""
+        self.stop_callback()
+        return super().close()
