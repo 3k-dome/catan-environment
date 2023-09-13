@@ -5,7 +5,7 @@ from typing import cast
 import numpy as np
 from numpy.typing import NDArray
 
-from environment.enums import MessageType, PlayerNumber
+from environment.enums import MessageType, PlayerNumber, Phase
 
 from .base_model import BaseModel
 
@@ -14,6 +14,7 @@ from .base_model import BaseModel
 class ReceivedStateModel(BaseModel):
     player_number: PlayerNumber
     type: MessageType
+    phase: Phase
     step: int
     state: list[float]
     mask: list[float]
@@ -41,6 +42,14 @@ class ReceivedStateModel(BaseModel):
                 self.type = MessageType[cast(str, self.type)]
             case builtins.int:
                 self.type = MessageType(self.type)
+            case _:
+                pass
+
+        match type(self.phase):
+            case builtins.str:
+                self.phase = Phase[cast(str, self.phase)]
+            case builtins.int:
+                self.phase = Phase(self.phase)
             case _:
                 pass
 
