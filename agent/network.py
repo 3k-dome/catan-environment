@@ -1,22 +1,9 @@
-from dataclasses import dataclass
-from typing import Iterable, Literal
+from typing import Iterable
 
 import tensorflow as tf  # type: ignore
 import tf_agents  # type: ignore
 
-
-@dataclass
-class DropoutDefinition:
-    rate: float
-    seed: int
-
-
-@dataclass
-class LayerDefinition:
-    activation: Literal["relu", "linear"]
-    size: int
-    seed: int
-    dropout: DropoutDefinition | None
+from .parameters import DropoutDefinition, LayerDefinition
 
 
 def build_dense_layer(definition: LayerDefinition) -> Iterable[tf.keras.layers.Layer]:
@@ -65,9 +52,10 @@ def build_network(observation_size: int, action_size: int) -> tf_agents.networks
     return tf_agents.networks.Sequential(
         [
             tf.keras.layers.InputLayer(input_shape=(observation_size,)),
-            *build_dense_layer(LayerDefinition("relu", size=768, seed=0, dropout=DropoutDefinition(0.2, seed=0))),
-            *build_dense_layer(LayerDefinition("relu", size=512, seed=0, dropout=DropoutDefinition(0.2, seed=0))),
-            *build_dense_layer(LayerDefinition("relu", size=256, seed=1, dropout=DropoutDefinition(0.2, seed=1))),
-            *build_dense_layer(LayerDefinition("linear", size=action_size, seed=3, dropout=None)),
+            *build_dense_layer(LayerDefinition("relu", size=716, seed=0, dropout=DropoutDefinition(rate=0.2, seed=0))),
+            *build_dense_layer(LayerDefinition("relu", size=592, seed=1, dropout=DropoutDefinition(rate=0.167, seed=1))),
+            *build_dense_layer(LayerDefinition("relu", size=468, seed=2, dropout=DropoutDefinition(rate=0.134, seed=2))),
+            *build_dense_layer(LayerDefinition("relu", size=344, seed=3, dropout=DropoutDefinition(rate=0.1, seed=3))),
+            *build_dense_layer(LayerDefinition("linear", size=action_size, seed=4, dropout=None)),
         ]
     )
