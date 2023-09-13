@@ -22,11 +22,21 @@ class BaseModel:
         return json_str.encode("utf-8")
 
     @classmethod
-    def from_json(cls, json_stream: BytesIO) -> "BaseModel":
+    def from_stream(cls, json_stream: BytesIO) -> "BaseModel":
         """Factory method to create an instance of this model from a json byte stream.
 
         :param json_stream: A readable json byte stream.
         :return: A instance of this model.
         """
         decoded = json.load(json_stream)
+        return cls(**decoded)
+
+    @classmethod
+    def from_bytes(cls, json_bytes: bytes) -> "BaseModel":
+        """Factory method to create an instance of this model from a json byte stream.
+
+        :param json_stream: A readable json byte stream.
+        :return: A instance of this model.
+        """
+        decoded = json.loads(json_bytes)
         return cls(**decoded)
