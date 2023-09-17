@@ -34,7 +34,8 @@ class EnvironmentSocketServer:
         while True:
             try:
                 self.run()
-            except ConnectionResetError:
+            # the socket may be closed by the stop callback or due to the environment closing
+            except (ConnectionResetError, ConnectionAbortedError):
                 return
 
     def run(self) -> None:
