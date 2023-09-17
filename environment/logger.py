@@ -3,10 +3,10 @@ import sys
 from logging import Logger
 from logging.handlers import QueueHandler, QueueListener
 from queue import Queue
-from typing import Any
+from typing import Any, Literal
 
 
-def setup_logging() -> Logger:
+def setup_logging(level: Literal["DEBUG", "INFO", "WARN"]) -> Logger:
     que: Queue[Any] = Queue()
     queue_handler = QueueHandler(que)
     handler = logging.StreamHandler(sys.stdout)
@@ -16,8 +16,9 @@ def setup_logging() -> Logger:
 
     root = logging.getLogger("catan-environment")
     root.addHandler(queue_handler)
-    root.setLevel("DEBUG")
+    root.setLevel(level)
     root.propagate = False
-    
+
     listener.start()
+
     return root
