@@ -18,7 +18,7 @@ from environment import server
 LOGGER = logging.getLogger("catan-environment")
 
 ACTION_SPEC = 218
-OBSERVATION_SPEC = 840
+OBSERVATION_SPEC = 841
 
 
 T = TypeVar("T")
@@ -116,15 +116,14 @@ class CatanRemoteEnvironment(PyEnvironment):
         ENVIRONMENT_ACTION.put(action_model)
 
     @staticmethod
-    def episode_end_signal(current_observation: NDArray[np.float32]) -> float:
-        if current_observation[0] >= 1:
-            reward = 1.0
-            LOGGER.info(f"Reward := {reward}, Episode won!")
+    def episode_end_signal(current_observation: NDArray[np.float32]) -> float | None:
+        if current_observation[0] < 1:
+            reward = -1.0
+            LOGGER.info(f"Reward := {reward}, Episode lost!")
             return reward
 
-        reward = -1.0
-        LOGGER.info(f"Reward := {reward}, Episode lost!")
-        return reward
+        LOGGER.info(f"Agent did not lose, using default reward.")
+        return None
 
     @staticmethod
     def naive_additive_reward(old_observation: NDArray[np.float32], new_observation: NDArray[np.float32]) -> float:
@@ -150,7 +149,8 @@ class CatanRemoteEnvironment(PyEnvironment):
         """
 
         if message_type == MessageType.EPISODE_ENDS and self.use_episode_end_signal:
-            return self.episode_end_signal(new_observation)
+            if reward := self.episode_end_signal(new_observation):
+                return reward
 
         return (
             CatanRemoteEnvironment.naive_additive_reward(old_observation, new_observation)
