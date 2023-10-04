@@ -17,7 +17,7 @@ class LayerDefinition:
 
 
 @dataclass
-class AgentParameters:
+class AgentParams:
     gamma: float
     n_steps: int
     batchsize: int
@@ -26,6 +26,7 @@ class AgentParameters:
     epsilon_start: float = 1.00
     epsilon_end: float = 0.1
     network_update_frequency: int = 4  # [sampled actions]
+    buffer_size: int = 100_000
 
     # dqn: after 10_000 trainings steps a hard updated (t = 1) is performed
     # t-soft: after each training step a soft update with (t = 0.001) is performed

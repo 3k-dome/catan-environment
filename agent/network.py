@@ -52,10 +52,29 @@ def build_network(observation_size: int, action_size: int) -> tf_agents.networks
     return tf_agents.networks.Sequential(
         [
             tf.keras.layers.InputLayer(input_shape=(observation_size,)),
-            *build_dense_layer(LayerDefinition("relu", size=716, seed=0, dropout=DropoutDefinition(rate=0.2, seed=0))),
-            *build_dense_layer(LayerDefinition("relu", size=592, seed=1, dropout=DropoutDefinition(rate=0.167, seed=1))),
-            *build_dense_layer(LayerDefinition("relu", size=468, seed=2, dropout=DropoutDefinition(rate=0.134, seed=2))),
-            *build_dense_layer(LayerDefinition("relu", size=344, seed=3, dropout=DropoutDefinition(rate=0.1, seed=3))),
-            *build_dense_layer(LayerDefinition("linear", size=action_size, seed=4, dropout=None)),
+            # *build_dense_layer(LayerDefinition("relu", size=716, seed=0, dropout=DropoutDefinition(rate=0.2, seed=0))),
+            # *build_dense_layer(LayerDefinition("relu", size=592, seed=1, dropout=DropoutDefinition(rate=0.167, seed=1))),
+            # *build_dense_layer(LayerDefinition("relu", size=468, seed=2, dropout=DropoutDefinition(rate=0.134, seed=2))),
+            # *build_dense_layer(LayerDefinition("relu", size=344, seed=3, dropout=DropoutDefinition(rate=0.1, seed=3))),
+
+            # *build_dense_layer(LayerDefinition("relu", size=645, seed=0, dropout=DropoutDefinition(rate=0.2, seed=0))),
+
+            # *build_dense_layer(LayerDefinition("relu", size=760, seed=0, dropout=DropoutDefinition(rate=0.2, seed=0))),
+            # *build_dense_layer(LayerDefinition("relu", size=510, seed=0, dropout=DropoutDefinition(rate=0.2, seed=1))),
+
+            # *build_dense_layer(LayerDefinition("relu", size=822, seed=0, dropout=DropoutDefinition(rate=0.2, seed=0))),
+            # *build_dense_layer(LayerDefinition("relu", size=636, seed=1, dropout=DropoutDefinition(rate=0.2, seed=1))),
+            # *build_dense_layer(LayerDefinition("relu", size=448, seed=2, dropout=DropoutDefinition(rate=0.2, seed=2))),
+
+            *build_dense_layer(LayerDefinition("relu", size=658, seed=0, dropout=None)),
+            *build_dense_layer(LayerDefinition("relu", size=508, seed=1, dropout=None)),
+            *build_dense_layer(LayerDefinition("relu", size=358, seed=2, dropout=None)),
+
+            # *build_dense_layer(LayerDefinition("relu", size=860, seed=0, dropout=DropoutDefinition(rate=0.2, seed=0))),
+            # *build_dense_layer(LayerDefinition("relu", size=710, seed=1, dropout=DropoutDefinition(rate=0.2, seed=1))),
+            # *build_dense_layer(LayerDefinition("relu", size=560, seed=2, dropout=DropoutDefinition(rate=0.2, seed=2))),
+            # *build_dense_layer(LayerDefinition("relu", size=411, seed=3, dropout=DropoutDefinition(rate=0.2, seed=2))),
+
+            *build_dense_layer(LayerDefinition("linear", size=action_size, seed=0, dropout=None)),
         ]
     )

@@ -9,10 +9,10 @@ from tf_agents.environments import tf_py_environment  # type: ignore
 from environment.environment import ACTION_SPEC, OBSERVATION_SPEC, CatanRemoteEnvironment
 
 from agent.network import build_network
-from agent.parameters import AgentParameters
+from agent.parameters import AgentParams
 
 
-def _setup_epsilon_decay_callback(train_step: Variable, parameters: AgentParameters) -> Callable[..., float]:
+def _setup_epsilon_decay_callback(train_step: Variable, parameters: AgentParams) -> Callable[..., float]:
     epsilon_decay: Callable[[int], float] = tf.keras.optimizers.schedules.PolynomialDecay(
         initial_learning_rate=parameters.epsilon_start,
         decay_steps=parameters.epsilon_steps,
@@ -22,10 +22,10 @@ def _setup_epsilon_decay_callback(train_step: Variable, parameters: AgentParamet
     return lambda: epsilon_decay(train_step)  # type: ignore
 
 
-def get_initialized_agent(environment: CatanRemoteEnvironment, parameters: AgentParameters) -> tuple[agents.TFAgent, tf_py_environment.TFPyEnvironment]:
+def get_initialized_agent(environment: CatanRemoteEnvironment, parameters: AgentParams) -> tuple[agents.TFAgent, tf_py_environment.TFPyEnvironment]:
     tf_environment = tf_py_environment.TFPyEnvironment(environment)
 
-    optimizer = tf.keras.optimizers.Adam()
+    optimizer = tf.keras.optimizers.Adam(global_clipnorm=1)
     train_step: Variable = tf.compat.v1.train.get_or_create_global_step()  # type: ignore
     epsilon_decay_callback = _setup_epsilon_decay_callback(train_step, parameters)
 
