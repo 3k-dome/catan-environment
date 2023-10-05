@@ -3,7 +3,7 @@ from typing import Literal
 
 
 @dataclass
-class EnvironmentParameters:
+class EnvironmentParams:
     reward_mode: float | Literal["naive"]
     episode_end_signal: bool
     port: int

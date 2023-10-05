@@ -11,7 +11,7 @@ from tf_agents.trajectories.time_step import TimeStep  # type: ignore
 
 from environment.enums import MessageType, PlayerNumber
 from environment.models import SubmittedActionModel
-from environment.parameters import EnvironmentParameters
+from environment.parameters import EnvironmentParams
 from environment.queues import ENVIRONMENT_ACTION, ENVIRONMENT_STATE
 from environment import server
 
@@ -25,7 +25,7 @@ T = TypeVar("T")
 
 
 class CatanRemoteEnvironment(PyEnvironment):
-    def __init__(self, parameters: EnvironmentParameters):
+    def __init__(self, parameters: EnvironmentParams):
         super().__init__(False)
 
         self.reward_mode: float | Literal["naive"] = parameters.reward_mode
@@ -116,9 +116,11 @@ class CatanRemoteEnvironment(PyEnvironment):
         ENVIRONMENT_ACTION.put(action_model)
 
     @staticmethod
-    def episode_end_signal(current_observation: NDArray[np.float32]) -> float | None:
+    def episode_end_signal(old_observation: NDArray[np.float32], current_observation: NDArray[np.float32]) -> float | None:
         if current_observation[0] < 1:
             reward = -1.0
+
+            # reward = max(old_observation[0], current_observation[0]) * (-1)
             LOGGER.info(f"Reward := {reward}, Episode lost!")
             return reward
 
@@ -149,7 +151,7 @@ class CatanRemoteEnvironment(PyEnvironment):
         """
 
         if message_type == MessageType.EPISODE_ENDS and self.use_episode_end_signal:
-            if reward := self.episode_end_signal(new_observation):
+            if reward := self.episode_end_signal(old_observation, new_observation):
                 return reward
 
         return (
@@ -199,7 +201,7 @@ class CatanRemoteEnvironment(PyEnvironment):
 
 
 class CatanHttpEnvironment(CatanRemoteEnvironment):
-    def __init__(self, parameters: EnvironmentParameters):
+    def __init__(self, parameters: EnvironmentParams):
         super().__init__(parameters)
         self.server, self.start_callback, self.stop_callback = server.EnvironmentHttpServer.server_factory(parameters.host, parameters.port)
         self.server_thread = Thread(target=self.start_callback)
@@ -213,7 +215,7 @@ class CatanHttpEnvironment(CatanRemoteEnvironment):
 
 
 class CatanSocketEnvironment(CatanRemoteEnvironment):
-    def __init__(self, parameters: EnvironmentParameters):
+    def __init__(self, parameters: EnvironmentParams):
         super().__init__(parameters)
         self.server, self.start_callback, self.stop_callback = server.EnvironmentSocketServer.server_factory(parameters.host, parameters.port)
         self.server_thread = Thread(target=self.start_callback)
